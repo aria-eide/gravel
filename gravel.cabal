@@ -1,0 +1,12 @@
+cabal-version:          3.0
+name:                   gravel
+version:                0.1.0.0
+build-type:             Simple
+
+executable gravel
+    hs-source-dirs:     app
+    main-is:            Main.hs
+    ghc-options:        -Wall -Wextra -Wcompat -threaded -with-rtsopts=-N
+    default-language:   GHC2021
+    default-extensions: BlockArguments
+    build-depends:      base, shake
