@@ -9,4 +9,4 @@ executable gravel
     ghc-options:        -Wall -Wextra -Wcompat -threaded -with-rtsopts=-N
     default-language:   GHC2021
     default-extensions: BlockArguments
-    build-depends:      base, shake
+    build-depends:      base, containers, shake

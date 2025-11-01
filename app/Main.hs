@@ -1,67 +1,57 @@
 module Main (main) where
 
+import Data.Map (Map)
+import Data.Map qualified as Map
+import Data.Maybe (fromJust)
 import Development.Shake
 import Development.Shake.FilePath ((-<.>))
-
-main :: IO ()
-main = shakeArgs (shakeOptions {shakeFiles = buildDir, shakeThreads = 0}) do
-  action (parseProjectFile >>= paths >>= need . snd)
-
-  phony "clean" do
-    putInfo "removing artifacts"
-    liftIO (removeFiles "." artifacts)
-    removeFilesAfter buildDir ["//*"]
-
-  "//*.vo" %> \out -> do
-    project <- parseProjectFile
-    let source = out -<.> "v"
-    Stdout depLine <-
-      cmd (Traced "rocq dep") "rocq dep" (packageArgs project) source
-    let deps = filter ("//*.vo" ?==) $ words $ dropWhile (/= ':') depLine
-    need (source : deps)
-    cmd_ (Traced "rocq compile") "rocq compile -q" (packageArgs project) source
+import System.IO qualified as IO
 
 projectFile, buildDir :: FilePath
 projectFile = "_CoqProject"
 buildDir = "_build"
 
-artifacts :: [FilePath]
-artifacts =
-  [ "//*.glob",
-    "//*.aux",
-    "//*.vo",
-    "//*.vos",
-    "//*.vok",
-    "//.lia.cache"
-  ]
+main :: IO ()
+main = do
+  project <- parseProjectFile
+  graph <- parseDeps . fromStdout <$> cmd "rocq dep -f" projectFile
+  putStrLn "(got dependency graph)"
 
--- project file shenanigans ----------------------------------------------------
+  shakeArgs (shakeOptions {shakeFiles = buildDir, shakeThreads = 0}) do
+    want (Map.keys graph)
+
+    phony "clean" do
+      putInfo "removing artifacts"
+      liftIO (removeFiles "." artifacts)
+      removeFilesAfter buildDir ["//*"]
+
+    "//*.vo" %> \out -> do
+      let src = out -<.> "v"
+      need (src : fromJust (Map.lookup out graph))
+      cmd_ (Traced "rocq compile") "rocq compile -q" (packageArgs project) src
+
+parseDeps :: String -> Map FilePath [FilePath]
+parseDeps = foldMap one . lines
+  where
+    one line =
+      let (lhs, rhs) = span (/= ':') line
+          lhs' = filter relevant (words lhs)
+          rhs' = filter relevant (words (drop 1 rhs))
+       in Map.fromList (map (,rhs') lhs')
+
+    relevant path = ("//*.vo" ?== path) || ("//*.v" ?== path)
 
 packageArgs :: Project -> [String]
 packageArgs p =
   let one (Package c dir name) = [['-', c], dir, name]
    in concatMap one (packages p)
 
--- returns all source files and their '.vo' compiled names
-paths :: Project -> Action ([FilePath], [FilePath])
-paths p = do
-  let inDir d = do
-        names <- getDirectoryFiles d ["//*.v"]
-        return (fmap ((d ++ "/") ++) names) -- rocq dislikes backslashes :(
-  withinDirs <- concat <$> traverse inDir (directories p)
-  let names = withinDirs ++ files p
-  return (names, fmap (-<.> "vo") names)
-
-data Project = Project
-  { packages :: [Package],
-    directories :: [FilePath],
-    files :: [FilePath]
-  }
+data Project = Project {packages :: [Package]}
 
 -- A named package, as in '-Q theories Temporal'
 data Package = Package Char FilePath String
 
-parseProjectFile :: Action Project
+parseProjectFile :: IO Project
 parseProjectFile = do
   let collect [] = ([], [], [])
       collect ("-R" : ws) = package 'R' ws
@@ -76,6 +66,16 @@ parseProjectFile = do
       theory _ _ [] = error "bad -R/-Q: missing theory name"
       theory c dir (name : ws) = ([Package c dir name], [], []) <> collect ws
 
-  p <- readFile' projectFile
-  let (packages, directories, files) = collect (words p)
-  return (Project {packages, directories, files})
+  p <- IO.readFile' projectFile
+  let (packages, _directories, _files) = collect (words p)
+  return (Project {packages})
+
+artifacts :: [FilePath]
+artifacts =
+  [ "//*.glob",
+    "//*.aux",
+    "//*.vo",
+    "//*.vos",
+    "//*.vok",
+    "//.lia.cache"
+  ]

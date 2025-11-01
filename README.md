@@ -4,7 +4,7 @@ does everything i need `rocq makefile` to do, but without the horrors :-)
 
 # install
 
-git clone, then `cabal install`
+`git clone`, then `cabal install`
 
 # usage
 
