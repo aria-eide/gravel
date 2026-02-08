@@ -8,5 +8,5 @@ executable gravel
     main-is:            Main.hs
     ghc-options:        -Wall -Wextra -Wcompat -threaded -with-rtsopts=-N
     default-language:   GHC2021
-    default-extensions: BlockArguments
+    default-extensions: BlockArguments, TypeFamilies
     build-depends:      base, containers, shake

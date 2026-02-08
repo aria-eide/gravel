@@ -1,6 +1,6 @@
 gravel is a bunch of rocks!
 
-does everything i need `rocq makefile` to do, but without the horrors :-)
+does everything i need `rocq makefile` to do, but without the horrors :3
 
 # install
 
